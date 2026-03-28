@@ -1,0 +1,62 @@
+{
+  "name": "@tofupilot/trpc-rest",
+  "version": "0.1.1",
+  "description": "OpenAPI support for tRPC v11 — generate specs and handle REST requests from tRPC routers",
+  "license": "MIT",
+  "keywords": [
+    "trpc",
+    "openapi",
+    "rest",
+    "api",
+    "zod"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./handler": {
+      "import": "./dist/handler.js",
+      "types": "./dist/handler.d.ts"
+    },
+    "./generator": {
+      "import": "./dist/generator.js",
+      "types": "./dist/generator.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod-openapi": "^5.4.6"
+  },
+  "peerDependencies": {
+    "@trpc/server": ">=11.10.0",
+    "zod": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "vitest": "^3.2.3",
+    "zod": "^4.3.6",
+    "@trpc/server": "^11.10.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tofupilot/trpc-rest.git"
+  },
+  "homepage": "https://github.com/tofupilot/trpc-rest#readme",
+  "bugs": {
+    "url": "https://github.com/tofupilot/trpc-rest/issues"
+  },
+  "type": "module"
+}
