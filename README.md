@@ -1,4 +1,4 @@
-# @tofupilot/trpc-rest
+# trpc-rest
 
 OpenAPI support for tRPC v11 — generate OpenAPI 3.1 specs and handle REST requests from tRPC routers.
 
@@ -7,9 +7,9 @@ Built for [Zod 4](https://zod.dev/) and [tRPC v11](https://trpc.io/).
 ## Install
 
 ```bash
-npm install @tofupilot/trpc-rest
+npm install trpc-rest
 # or
-pnpm add @tofupilot/trpc-rest
+pnpm add trpc-rest
 ```
 
 ### Peer dependencies
@@ -28,7 +28,7 @@ pnpm add @tofupilot/trpc-rest
 ```ts
 import { initTRPC } from '@trpc/server';
 import { z } from 'zod';
-import type { OpenApiMeta } from '@tofupilot/trpc-rest';
+import type { OpenApiMeta } from 'trpc-rest';
 
 const t = initTRPC.meta<OpenApiMeta>().create();
 
@@ -52,7 +52,7 @@ const appRouter = t.router({
 ### 2. Generate an OpenAPI document
 
 ```ts
-import { generateOpenApiDocument } from '@tofupilot/trpc-rest';
+import { generateOpenApiDocument } from 'trpc-rest';
 
 const doc = generateOpenApiDocument(appRouter, {
   title: 'My API',
@@ -64,7 +64,7 @@ const doc = generateOpenApiDocument(appRouter, {
 ### 3. Handle REST requests
 
 ```ts
-import { createOpenApiFetchHandler } from '@tofupilot/trpc-rest';
+import { createOpenApiFetchHandler } from 'trpc-rest';
 
 // In your HTTP handler (e.g. Next.js route handler)
 export async function GET(req: Request) {
