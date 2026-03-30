@@ -240,12 +240,16 @@ opts: GenerateOptions)
     };
 
     // Request body for POST/PUT/PATCH — pass Zod schema directly for createDocument
+    // Skip requestBody when all input fields are path params (empty body)
     if (['POST', 'PUT', 'PATCH'].includes(openapi.method) && inputParser) {
       const bodySchema = excludePathParamsFromSchema(inputParser, pathParams);
-      operation.requestBody = {
-        required: true,
-        content: { 'application/json': { schema: bodySchema } }
-      };
+      const hasBodyFields = isZodObject(bodySchema) && Object.keys((bodySchema as ZodObject<ZodRawShape>).shape).length > 0;
+      if (!isZodObject(bodySchema) || hasBodyFields) {
+        operation.requestBody = {
+          required: true,
+          content: { 'application/json': { schema: bodySchema } }
+        };
+      }
     }
 
     // Responses — pass Zod schema directly
