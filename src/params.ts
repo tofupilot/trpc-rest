@@ -121,11 +121,11 @@ export function unwrapZodType(schema: z.ZodType, unwrapPreprocess: boolean): z.Z
     return unwrapZodType(schema.unwrap() as z.ZodType, unwrapPreprocess);
   }
   if (schema instanceof z.ZodPipe) {
-    return unwrapZodType(schema.in as z.ZodType, unwrapPreprocess);
-  }
-  if (schema instanceof z.ZodTransform) {
-    const inner = (schema as unknown as { _zod: { def: z.ZodType } })._zod.def;
-    if (inner) return unwrapZodType(inner, unwrapPreprocess);
+    // z.preprocess() in Zod v4 creates ZodPipe { in: ZodTransform, out: <actual schema> }
+    // For preprocess pipes, unwrap via .out; for normal pipes, unwrap via .in
+    const pipe = schema as z.ZodPipe<z.ZodType, z.ZodType>;
+    const inner = pipe.in instanceof z.ZodTransform ? pipe.out : pipe.in;
+    return unwrapZodType(inner as z.ZodType, unwrapPreprocess);
   }
 
   return schema;
