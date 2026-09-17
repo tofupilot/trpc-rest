@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { initTRPC } from '@trpc/server';
+import { z } from 'zod';
 import { generateOpenApiDocument } from '../src/generator';
+import type { OpenApiMeta } from '../src/types';
 import { testRouter } from './fixtures/router';
 
 const doc = generateOpenApiDocument(testRouter, {
@@ -314,5 +317,75 @@ describe('generator', () => {
       const limitParam = params.find((p) => p.name === 'limit');
       expect(limitParam?.style).toBeUndefined();
     });
+  });
+
+  describe('record/object query params', () => {
+    it('emits content: application/json instead of a bare schema', () => {
+      const op = doc.paths['/v2/search']?.['get'] as Record<string, unknown>;
+      const params = op.parameters as Array<{
+        name: string;
+        schema?: unknown;
+        content?: Record<string, { schema: unknown }>;
+      }>;
+      const metadataParam = params.find((p) => p.name === 'metadata');
+      expect(metadataParam?.content).toHaveProperty('application/json');
+      expect(metadataParam?.schema).toBeUndefined();
+    });
+
+    it('leaves scalar query params with a bare schema', () => {
+      const op = doc.paths['/v2/runs']?.['get'] as Record<string, unknown>;
+      const params = op.parameters as Array<{
+        name: string;
+        schema?: unknown;
+        content?: unknown;
+      }>;
+      const limitParam = params.find((p) => p.name === 'limit');
+      expect(limitParam?.schema).toBeDefined();
+      expect(limitParam?.content).toBeUndefined();
+    });
+  });
+});
+
+describe('defaultErrorResponses', () => {
+  const docWithDefaults = generateOpenApiDocument(testRouter, {
+    title: 'Test API',
+    version: '1.0.0',
+    baseUrl: 'http://localhost:3000/api',
+    defaultErrorResponses: { GET: { 408: 'Request timeout' } },
+  });
+  const responsesOf = (doc: typeof docWithDefaults, path: string, method: string) =>
+    (doc.paths[path]![method] as { responses: Record<string, { description: string }> }).responses;
+
+  it('adds the default status to every operation of that method', () => {
+    expect(responsesOf(docWithDefaults, '/v2/runs', 'get')['408']?.description).toBe('Request timeout');
+    expect(responsesOf(docWithDefaults, '/v2/runs/{id}', 'get')['408']?.description).toBe('Request timeout');
+    expect(responsesOf(docWithDefaults, '/v2/health', 'get')['408']?.description).toBe('Request timeout');
+  });
+
+  it('leaves other methods untouched', () => {
+    expect(responsesOf(docWithDefaults, '/v2/runs', 'post')['408']).toBeUndefined();
+    expect(responsesOf(docWithDefaults, '/v2/runs/{id}', 'put')['408']).toBeUndefined();
+    expect(responsesOf(docWithDefaults, '/v2/runs/{id}', 'delete')['408']).toBeUndefined();
+  });
+
+  it('never overrides a status the operation declares itself', () => {
+    const t = initTRPC.meta<OpenApiMeta>().create();
+    const own = t.router({
+      slow: t.procedure
+        .meta({ openapi: { method: 'GET', path: '/v2/slow', errorResponses: { 408: 'Own timeout wording' } } })
+        .output(z.object({ ok: z.boolean() }))
+        .query(() => ({ ok: true })),
+    });
+    const declared = generateOpenApiDocument(own, {
+      title: 'Test API',
+      version: '1.0.0',
+      baseUrl: 'http://localhost:3000/api',
+      defaultErrorResponses: { GET: { 408: 'Request timeout' } },
+    });
+    expect(responsesOf(declared, '/v2/slow', 'get')['408']?.description).toBe('Own timeout wording');
+  });
+
+  it('is absent when the option is not given', () => {
+    expect(responsesOf(doc, '/v2/runs', 'get')['408']).toBeUndefined();
   });
 });

@@ -194,6 +194,18 @@ export function coerceQueryParams(
       } else if (unwrapped instanceof z.ZodDate && typeof value === 'string') {
         const date = new Date(value);
         if (!Number.isNaN(date.getTime())) result[key] = date;
+      } else if (
+        (unwrapped instanceof z.ZodRecord || isZodObject(unwrapped)) &&
+        typeof value === 'string'
+      ) {
+        // Object/record query params are sent as a single JSON-encoded string
+        // (OpenAPI `content: application/json` on the param). Parse it before
+        // validation; leave the raw string on failure so zod reports the error.
+        try {
+          result[key] = JSON.parse(value);
+        } catch {
+          /* leave as string, let validation surface the bad input */
+        }
       } else if (isZodObject(unwrapped) && typeof value === 'object' && value !== null && !Array.isArray(value)) {
         result[key] = coerceQueryParams(unwrapped, value as Record<string, unknown>);
       }

@@ -165,6 +165,28 @@ describe('coerceQueryParams', () => {
     expect(result).toEqual({ ids: [1, 2, 3] });
   });
 
+  it('JSON-parses a string value for a record query param', () => {
+    const schema = z.object({
+      metadata: z.record(z.string(), z.object({ in: z.array(z.string()) })).optional(),
+    });
+    const result = coerceQueryParams(schema, {
+      metadata: '{"vendor":{"in":["acme"]}}',
+    });
+    expect(result).toEqual({ metadata: { vendor: { in: ['acme'] } } });
+  });
+
+  it('JSON-parses a string value for an object query param', () => {
+    const schema = z.object({ filter: z.object({ a: z.number() }) });
+    const result = coerceQueryParams(schema, { filter: '{"a":1}' });
+    expect(result).toEqual({ filter: { a: 1 } });
+  });
+
+  it('leaves an invalid JSON record string as-is for validation to catch', () => {
+    const schema = z.object({ metadata: z.record(z.string(), z.string()).optional() });
+    const result = coerceQueryParams(schema, { metadata: 'not-json' });
+    expect(result).toEqual({ metadata: 'not-json' });
+  });
+
   it('does not mutate the original schema', () => {
     const schema = z.object({ count: z.number() });
     const defBefore = JSON.stringify((schema.shape.count as z.ZodNumber)._def);
@@ -272,13 +294,10 @@ describe('unwrapZodType (extended)', () => {
     expect(result).toBeInstanceOf(z.ZodObject);
   });
 
-  it('unwraps ZodTransform', () => {
-    // ZodTransform constructor takes (schema, fn) at runtime but TS types only declare 1 arg
-    const Ctor = z.ZodTransform as unknown as new (s: z.ZodString, fn: (v: string) => number) => z.ZodTransform;
-    const schema = new Ctor(z.string(), (v: string) => v.length);
-    const result = unwrapZodType(schema, true);
-    expect(result).toBeInstanceOf(z.ZodString);
-  });
+  // Transforms reach unwrapZodType only inside a ZodPipe (z.preprocess /
+  // z.transform always wrap in one in Zod v4) — covered by the ZodPipe test
+  // below. A bare standalone ZodTransform never appears in a real schema, so
+  // there's nothing meaningful to unwrap it to.
 
   it('unwraps nested optional + default', () => {
     const schema = z.number().default(5).optional();

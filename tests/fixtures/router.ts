@@ -156,7 +156,8 @@ export const testRouter = t.router({
   }).
   input(z.object({
     tags: z.array(z.string()).optional(),
-    ids: z.array(z.number()).optional()
+    ids: z.array(z.number()).optional(),
+    metadata: z.record(z.string(), z.object({ eq: z.string() })).optional()
   })).
   output(z.object({ tags: z.array(z.string()).optional(), ids: z.array(z.number()).optional() })).
   query(async ({ input }) => input),

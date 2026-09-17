@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ZodTypeAny, ZodObject, ZodRawShape } from 'zod';
 import { createDocument, createSchema } from 'zod-openapi';
 import type { AnyRouter, AnyProcedure, OpenApiMeta, ProcedureDef } from './types';
-import { isZodObject, mergeInputs, unwrapShallow } from './params';
+import { isZodObject, mergeInputs, unwrapShallow, unwrapZodType } from './params';
 
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -29,6 +29,8 @@ export interface ErrorSchemaConfig {
   autoAdd401?: boolean;
 }
 
+type HttpMethod = NonNullable<OpenApiMeta['openapi']>['method'];
+
 export interface GenerateOptions {
   title: string;
   description?: string;
@@ -50,6 +52,17 @@ export interface GenerateOptions {
    * 2. Optionally auto-add 401 Unauthorized to all operations
    */
   errorSchemas?: ErrorSchemaConfig;
+  /**
+   * Error responses every operation of a given HTTP method may return, on top
+   * of the ones it declares itself, e.g. `{ GET: { 408: 'Request timeout' } }`
+   * when a middleware caps every query. Declared once here instead of in each
+   * router, so a status the runtime can produce for a whole class of
+   * operations can never be missing from the document or from the SDKs
+   * generated from it. An operation's own `errorResponses` entry for the same
+   * status wins. Runs before `errorSchemas`, so the added status is wired to
+   * its component schema like any declared one.
+   */
+  defaultErrorResponses?: Partial<Record<HttpMethod, Record<number, string>>>;
 }
 
 // ─── Procedure collection ─────────────────────────────────────────────
@@ -121,6 +134,14 @@ pathParams: string[])
 }
 
 // ─── Generator ────────────────────────────────────────────────────────
+
+/** Placeholder error response; `errorSchemas` swaps the schema for a $ref later. */
+function errorResponse(description: string) {
+  return {
+    description,
+    content: { 'application/json': { schema: { type: 'object' as const } } }
+  };
+}
 
 /**
  * Generate an OpenAPI 3.1.0 document from a tRPC router.
@@ -211,12 +232,22 @@ opts: GenerateOptions)
           }
         }
         const isArray = unwrapShallow(fieldSchema as z.ZodType) instanceof z.ZodArray;
+        const unwrappedField = unwrapZodType(fieldSchema as z.ZodType, false);
+        // Record/object query params (e.g. metadata filters) can't be expressed
+        // with form/deepObject style for a nested-union value. Emit them as a
+        // JSON-encoded string via `content: application/json` — the server
+        // JSON.parses them (see coerceQueryParams) and SDK generators that honor
+        // `content` serialize the whole value to one JSON query string.
+        const isJsonObject =
+          unwrappedField instanceof z.ZodRecord || isZodObject(unwrappedField);
         const qpDescription = (fieldSchema as ZodTypeAny).description;
         parameters.push({
           name: key,
           in: 'query' as const,
           required: !isOptional,
-          schema: jsonSchema,
+          ...(isJsonObject
+            ? { content: { 'application/json': { schema: jsonSchema } } }
+            : { schema: jsonSchema }),
           ...(isArray ? { style: 'form', explode: true } : {}),
           ...(qpDescription ? { description: qpDescription } : {}),
         });
@@ -267,11 +298,12 @@ opts: GenerateOptions)
 
     if (openapi.errorResponses) {
       for (const [status, description] of Object.entries(openapi.errorResponses)) {
-        responses[String(status)] = {
-          description,
-          content: { 'application/json': { schema: { type: 'object' as const } } }
-        };
+        responses[String(status)] = errorResponse(description);
       }
+    }
+    for (const [status, description] of Object.entries(opts.defaultErrorResponses?.[openapi.method] ?? {})) {
+      if (responses[String(status)]) continue;
+      responses[String(status)] = errorResponse(description);
     }
 
     operation.responses = responses;
